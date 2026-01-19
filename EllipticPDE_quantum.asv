@@ -1,0 +1,28 @@
+%% Spectral method setup
+
+% Domain boundaries
+x_lb = 0;
+x_rb = 1;
+
+% Grid size: N = 2^n points per dimension (FFT-friendly)
+n = 4;
+N = 2^n;
+
+% Elliptic operator coefficient matrix (constant, d = 2)
+A = [3 1;
+     1 2];
+
+% Domain length and grid spacing
+L  = x_rb - x_lb;
+dx = L / N;
+
+% Periodic 1D grid (endpoint excluded, as in spectral methods)
+x = x_lb + (0:N-1) * dx;
+
+% 2D computational grid with "ij" indexing
+% ndgrid is the MATLAB equivalent of meshgrid(..., indexing='ij')
+[xs, ys] = ndgrid(x, x);
+
+
+FG=GroupFourier(2,n);
+GF=FG.ctranspose();

@@ -1,0 +1,205 @@
+%% Diffusion Convolution PDE Iterative Solver
+% Quantum-Classical hybrid approach for heat equation with spectral methods
+
+clear all; close all; clc;
+
+%% Physical Parameters
+% Spatial and temporal discretization parameters
+x_lb = 0;           % Left boundary
+x_rb = 1;           % Right boundary
+d = 2;              % Spatial dimensionality
+n = 5;              % Discretization parameter: N = 2^n points per dimension
+dt = 1e-3;          % Time step size
+
+%% Spatial Grid Construction
+N = 2^n;            % Total grid points per dimension
+L = x_rb - x_lb;    % Physical domain length
+dx = L / N;         % Grid spacing
+
+% Setup 2D domain
+y_lb = x_lb;
+y_ub = x_rb;
+N_y = N;
+N_x = N;
+
+x = x_lb + (0:N-1) * dx;
+[xs, ys] = ndgrid(x, x);
+
+%% Diffusion Coefficient Matrix
+% Constant diffusion tensor for 2D problem
+A = [3.0, 1.0;
+     1.0, 2.0];
+
+%% Define Energy Functional
+% Computes the diffusion energy: E = 0.5 * mean(A∇u · ∇u)
+    function E = energy(u, A, dx, N)
+        % FFT-based gradient computation
+        u_h = fft2(u);
+        
+        % Wave numbers (frequency domain)
+        wave = fftfreq_vec(N, dx) * 2i * pi;
+        [k_x, k_y] = ndgrid(wave, wave);
+        
+        % Gradients in frequency domain
+        u_x_h = k_x .* u_h;
+        u_y_h = k_y .* u_h;
+        
+        % Compute A * ∇u in frequency domain
+        Au_x = A(1,1) * u_x_h + A(1,2) * u_y_h;
+        Au_y = A(2,1) * u_x_h + A(2,2) * u_y_h;
+        
+        % Energy = 0.5 * mean(A∇u · ∇u)
+        E = 0.5 * real(mean(conj(Au_x) .* u_x_h + conj(Au_y) .* u_y_h, 'all'));
+    end
+
+%% Source Term and Initial Conditions
+    function f_val = f(x, y)
+        f_val = cos(2*pi*x) .* sin(-2*pi*y);
+    end
+
+    function u = u_init(x, y)
+        u = cos(2*pi*x) .* sin(8*pi*y) + ...
+            2 * sin(6*pi*y) + ...
+            3 * sin(10*pi*x) .* cos(12*pi*y).^2;
+    end
+
+%% Classical Iterative Solver - Spectral Space
+% Uses semi-implicit discretization in Fourier space with element-wise division
+    function u_next = iterative_heat(u_n, f_val, dt, A, N, dx)
+        u_h = fft2(u_n);
+        f_h = fft2(f_val);
+        
+        RHS = u_h - dt * f_h;
+        
+        % Wave numbers
+        wave = fftfreq_vec(N, dx) * 2i * pi;
+        [k_x, k_y] = ndgrid(wave, wave);
+        
+        % Diffusion operator: div(A∇) in frequency domain
+        diffuse_u_h = A(1,1)*k_x.^2 + A(1,2)*k_x.*k_y + ...
+                      A(2,1)*k_x.*k_y + A(2,2)*k_y.^2;
+        
+        % Solve (I - dt * diffuse_u_h) u_next_h = RHS using element-wise division
+        % This matches the Python implementation for better precision
+        u_next_h = RHS ./ (1 - dt * diffuse_u_h);
+        u_next = real(ifft2(u_next_h));
+    end
+
+%% Iterative Solver with DFT Matrix Form (Improved Precision)
+% Uses element-wise division instead of full matrix inversion
+    function u_new = iterative_heat_FG(u_val, f_val, dt, FG, GF, A, N, dx)
+        u_flatten = u_val(:);
+        f_flatten = f_val(:);
+        
+        u_h = FG * u_flatten;
+        f_h = FG * f_flatten;
+        
+        % Spectral eigenvalues
+        d = spectral_eigenvalues(N, dx);
+        [k_x, k_y] = ndgrid(d, d);
+        
+        % Diffusion operator in spectral space (diagonal in Fourier basis)
+        diffuse_diag = A(1,1)*k_x.^2 + A(1,2)*k_x.*k_y + ...
+                       A(2,1)*k_x.*k_y + A(2,2)*k_y.^2;
+        
+        % Element-wise division (diagonal operation) for better precision
+        % Avoid zero division at DC component
+        op_diag = 1 ./ (1 - dt * diffuse_diag(:) + eps);
+        
+        % Apply diagonal operator and inverse transform
+        u_new = GF * (op_diag .* (u_h - dt * f_h));
+        u_new = reshape(real(u_new), N, N);
+    end
+
+%% DFT Matrix Construction
+% 1D FFT matrix (normalized)
+dfmtx = fft(eye(N_x));
+% 2D Kronecker product form
+FG = kron(dfmtx, dfmtx);
+GF = kron(conj(dfmtx).' / N_x, conj(dfmtx).' / N_x);
+
+%% Initialization and Time Evolution
+u_spec = u_init(xs, ys);
+u_FG = u_init(xs, ys);
+energy_spec = energy(u_spec, A, dx, N);
+energy_FG = energy(u_FG, A, dx, N);
+
+% Time stepping loop
+num_steps = 40;
+for step = 1:num_steps
+    f_val = f(xs, ys);
+    u_spec = iterative_heat(u_spec, f_val, dt, A, N, dx);
+    u_FG = iterative_heat_FG(u_FG, f_val, dt, FG, GF, A, N, dx);
+    
+    energy_spec = [energy_spec, energy(u_spec, A, dx, N)];
+    energy_FG = [energy_FG, energy(u_FG, A, dx, N)];
+end
+
+%% Visualization
+figure('Position', [100 100 1600 400]);
+
+% Energy evolution
+subplot(1, 4, 1);
+plot(energy_spec, 'b-', 'LineWidth', 1.5);
+hold on;
+plot(energy_FG, 'r--', 'LineWidth', 1.5);
+xlabel('Time Step');
+ylabel('Energy');
+legend('Spectral (FFT)', 'Matrix Form (FG)');
+title('Energy Evolution');
+grid on;
+
+% Solution - Spectral method
+subplot(1, 4, 2);
+imagesc([x_lb, x_rb], [y_lb, y_ub], u_spec');
+set(gca, 'YDir', 'normal');
+colorbar;
+title('Solution u_{spec}');
+xlabel('x');
+ylabel('y');
+
+% Solution - Matrix form
+subplot(1, 4, 3);
+imagesc([x_lb, x_rb], [y_lb, y_ub], u_FG');
+set(gca, 'YDir', 'normal');
+colorbar;
+title('Solution u_{FG}');
+xlabel('x');
+ylabel('y');
+
+% Absolute error
+subplot(1, 4, 4);
+abs_error = abs(u_spec - u_FG);
+imagesc([x_lb, x_rb], [y_lb, y_ub], abs_error');
+set(gca, 'YDir', 'normal');
+colorbar;
+title('Absolute Error |u_{spec} - u_{FG}|');
+xlabel('x');
+ylabel('y');
+
+% Compute error metrics
+error_fro = norm(u_spec - u_FG, 'fro');
+error_max = max(abs_error, [], 'all');
+error_mean = mean(abs_error, 'all');
+fprintf('\n=== Error Analysis ===\n');
+fprintf('Frobenius norm error: %e\n', error_fro);
+fprintf('Maximum absolute error: %e\n', error_max);
+fprintf('Mean absolute error: %e\n', error_mean);
+
+%% Helper Functions
+
+    function k = spectral_eigenvalues(N, dx)
+        % Eigenvalues of 1D periodic derivative operator
+        k = 2i * pi * fftfreq_vec(N, dx);
+    end
+
+    function freq = fftfreq_vec(N, dx)
+        % FFT frequency vector (equivalent to np.fft.fftfreq)
+        if mod(N, 2) == 0
+            freq = [0:N/2-1, -N/2:-1]' / (N * dx);
+        else
+            freq = [0:(N-1)/2, -(N-1)/2:-1]' / (N * dx);
+        end
+    end
+
+    %%%%%%%%%%%%%%%%%%
