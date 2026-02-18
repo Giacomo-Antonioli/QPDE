@@ -5,9 +5,11 @@ x_lb = 0;
 x_rb = 1;
 
 % Grid size: N = 2^n points per dimension (FFT-friendly)
-n = 2;
+n = 6;
 N = 2^n;
 d=2;
+L = 1; 
+dx = L / N;
 % Elliptic operator coefficient matrix (constant, d = 2)
 % A = [3 1;
 %      1 2];
@@ -40,7 +42,7 @@ Elliptic_spec = ...
     A(2,2) * kron(I, D^2);
 
 % Avoid division by zero (zero-frequency mode)
-Elliptic_spec(1,1) = 1
+Elliptic_spec(1,1) = 1;
 
 invElliptic=diag(1./diag(Elliptic_spec));
 
@@ -67,6 +69,6 @@ f_flatten = f_flatten(:);
 % u_anal=f(xs,ys).*(-1/(20*(pi^2)));
 res=totalMat(1:2^(2*n),1:2^(2*n))*f_flatten;
 
-reshapedres=reshape(res,64,64);
+reshapedres=reshape(res,N,N);
 norm(u-reshapedres)/norm(u)
 % norm(reshapedres-u_anal)/norm(u_anal)

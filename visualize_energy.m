@@ -17,12 +17,12 @@ function visualize_energy(energy_true, energy_num, dt)
     
     % plt.plot(time, log_energy_FG, label="$Energy_{num}$")
     plot(time, log_energy_num, 'LineWidth', 1.5, ...
-         'DisplayName', '$Energy_{num}$');
+         'DisplayName', '$Energy_{quantum}$');
     hold on;
     
     % plt.plot(time, log_energy_spec, label="$Energy_{true}$")
     plot(time, log_energy_true, '--', 'LineWidth', 1.5, ...
-         'DisplayName', '$Energy_{true}$');
+         'DisplayName', '$Energy_{classical}$');
          
     hold off;
     

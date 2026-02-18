@@ -2,11 +2,9 @@
 clear; clc; close all;
 
 %% 1. Simulation Configuration
-dim = 2;            % Set to 2 or 3 to test different dimensions
-n  = 5;
-N=2^n;% Grid points (Power of 2, e.g., 16, 32, 64)
-dt  = 1e-3;         % Time step
-steps = 50;         % Number of time steps
+dim = 3;            % Set to 2 or 3 to test different dimensions
+n  = 3;
+N=2^n;
 
 %% 2. Define Diffusion Tensor (Matrix A)
 % Must be d x d. Using Identity for simple diffusion, or a coupled matrix.
@@ -28,13 +26,13 @@ elseif dim == 3
     % --- 3D Functions ---
     % Source: Oscillating source in center
     f_handle = @(x,y,z) 5 * sin(2*pi*x) .* sin(2*pi*y) .* sin(2*pi*z);
-    
+    u_true=@(x,y,z) -cos(2*pi*x).*sin(-4*pi*y)/(20*pi^2);
  
 end
 
 %% 4. Run the Generalized Solver
 fprintf('Starting %dD Simulation with N=%d...\n', dim, N);
 
-GenericElliptic_QPDE(f_handle, A, N, dim)%u_true
+GenericElliptic_QPDE(f_handle, A, N, dim,u_true)%
 
 fprintf('Done.\n');

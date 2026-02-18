@@ -26,8 +26,7 @@ function totalMat = QPDE_Generator_Diffusion(A, n, dt)
     I_vals = ones(N, 1);
 
     % --- 3. Construct Laplacian Eigenvalues via Kronecker Products ---
-    % We accumulate the sum: L_hat = sum_{i,j} A_{ij} * (k_i * k_j)
-    % We use vectors instead of full matrices to save memory.
+
     OP_vals = zeros(N^d, 1);
 
     for i = 1:d
@@ -36,9 +35,6 @@ function totalMat = QPDE_Generator_Diffusion(A, n, dt)
                 continue;
             end
             
-            % Initialize accumulator for the current term
-            % We will perform kron(current, K) to match MATLAB's 
-            % column-major ordering (Dimension 1 is fastest/innermost).
             term_vals = 1; 
             
             % Loop d down to 1 ensures dim 1 is innermost in the Kron product
@@ -63,18 +59,20 @@ function totalMat = QPDE_Generator_Diffusion(A, n, dt)
         end
     end
     
+    OP_vals(1)=1;
     % --- 4. Build Diffusion Propagator ---
     % Implicit Euler Step: (I - dt * Laplacian)^-1
     % In spectral space: 1 ./ (1 - dt * OP_vals)
     Inv_OP_vals = 1 ./ (1 - dt * OP_vals);
-    
+   
     % Normalize for Unitary Encoding (Must be <= 1)
     alpha = max(abs(Inv_OP_vals));
+    alpha
     Normalized_Vals = Inv_OP_vals / alpha;
     
     % Create sparse diagonal matrix
     DiagMat = sparse(1:N^d, 1:N^d, Normalized_Vals, N^d, N^d);
-    
+
     % Encode into Unitary
     % (Using MakeUnitary helper assumed to be available)
     DiagEncoding = MakeUnitary(DiagMat);
@@ -88,5 +86,6 @@ function totalMat = QPDE_Generator_Diffusion(A, n, dt)
 
     % Extract Matrix
     totalMat = totalCircuit.matrix;
-    totalMat = totalMat(1:2^(d*n), 1:2^(d*n));
+    totalMat = totalMat(1:2^(d*n), 1:2^(d*n))*alpha;
+
 end

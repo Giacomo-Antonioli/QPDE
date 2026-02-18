@@ -36,10 +36,10 @@ function u = solver_Elliptic_generic(f, grids, A, N, dx)
             end
         end
     end
-    
+    denom(1)=1;
     % 7. Solve in spectral space
     u_h = f_h ./ denom;
-    u_h(1) = 0; % Enforce zero mean (remove artifact from k_d(1)=1)
+
   
     % 8. Inverse N-D FFT
     u = ifftn(u_h);

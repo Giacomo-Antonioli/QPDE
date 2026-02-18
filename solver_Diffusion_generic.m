@@ -21,7 +21,7 @@ function u = solver_Diffusion_generic(f, grids, A, N, dx, dt)
             end
         end
     end
-    
+    % denom(1)=1;
     u_h = f_h ./ denom;
     u = real(ifftn(u_h));
 end

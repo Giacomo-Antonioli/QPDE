@@ -37,7 +37,7 @@ elseif dim == 3
     f_handle = @(x,y,z) cos(2*pi*x).*sin(-4*pi*y).*cos(2*pi*z)
     
     % Initial: Gaussian ball in the center
-    u_handle = @(x,y,z) cos(2*pi*x).*sin(8*pi*y)+2*sin(6*pi*y)+3*sin(10*pi*x).*cos(12*pi*y).^2
+    u_handle = @(x,y,z) cos(2*sin(8*pi*x)
     u_true=@(x,y,z) cos(2*pi*x) .* sin(-4*pi*y);
 end
 
