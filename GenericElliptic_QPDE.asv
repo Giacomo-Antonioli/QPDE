@@ -236,25 +236,6 @@ if flagUtrue
 else
     fprintf('Saved u_generic and u_quantum to %s \n', folderName);
 end
-
-% --- Relative Error Calculation ---
-u_q_real = real(u_quantum);
-
-if flagUtrue
-    % Compare both to Ground Truth
-    rel_err_classical = norm(u_generic(:) - ground_truth(:)) / norm(ground_truth(:));
-    rel_err_quantum   = norm(u_q_real(:) - ground_truth(:)) / norm(ground_truth(:));
-    
-    fprintf('\n--- Relative Errors (vs Ground Truth) ---\n');
-    fprintf('Classical Relative Error: %.4e\n', rel_err_classical);
-    fprintf('Quantum Relative Error:   %.4e\n', rel_err_quantum);
-else
-    % Compare Quantum to Classical Solution
-    rel_err_quantum = norm(u_q_real(:) - u_generic(:)) / norm(u_generic(:));
-    
-    fprintf('\n--- Relative Error (vs Classical Solution) ---\n');
-    fprintf('Quantum Relative Error: %.4e\n', rel_err_quantum);
-end
 end
 
 

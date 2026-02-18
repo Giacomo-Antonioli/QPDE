@@ -6,7 +6,6 @@ function u = solver_Elliptic_generic(f, grids, A, N, dx)
     N_vecs = N; % Already a vector [Nx, Ny, ...]
 
     % 3. Reshape RHS (f is a flat vector, map back to N-D grid)
-    % FIX: Do not call f(grids), just reshape the data
     f_values = reshape(f, N_vecs);
   
     % 4. Forward N-D FFT
