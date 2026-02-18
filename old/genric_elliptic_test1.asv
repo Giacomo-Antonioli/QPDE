@@ -1,0 +1,465 @@
+%% Quantum Generic Diffusion Solver - Arbitrary Dimension d
+clear; clc; close all;
+
+%% 1. Setup & Parameters
+n = 6;              % Qubits per dimension (N = 2^n = 64)
+N = 2^n;
+dt = 1e-3;
+d = 2;              % *** DIMENSION - Change this to desired dimension ***
+
+% Physical Grid [0, 1)
+L = 1;
+dx = L / N;
+x = (0:N-1) * dx;
+
+% --- GENERIC d×d SYMMETRIC POSITIVE DEFINITE MATRIX A ---
+% Create a random SPD matrix by A = Q*Lambda*Q' where Q is orthogonal
+% and Lambda is diagonal with positive eigenvalues
+rng(42);  % Fixed seed for reproducibility
+Q_rand = orth(randn(d, d));
+lambda = linspace(1, d, d);  % Eigenvalues from 1 to d
+A = Q_rand * diag(lambda) * Q_rand';
+A = (A + A') / 2;  % Ensure symmetry
+
+% Override with identity for testing
+A = eye(d);
+
+% Check if A is identity matrix
+is_identity = all(all(A == eye(size(A))));
+if is_identity
+    matrix_label = 'I';
+else
+    matrix_label = 'A';
+end
+
+fprintf('=== Quantum Elliptic Solver (Dimension d=%d) ===\n', d);
+fprintf('Matrix A (%dx%d):\n', d, d);
+disp(A);
+
+% Create multi-dimensional grid
+grid_size = repmat(N, 1, d);
+[grids{1:d}] = ndgrid(x);  % Create d grids
+X_grids = grids;  % Store for later use
+
+% Source Term and Initial Condition
+% f(x,y,...) := cos(2*pi*x) * sin(-4*pi*y) * product of sin(2*pi*z_i) for i >= 3
+% u_init(x,y,...) := cos(2*pi*x) * sin(8*pi*y) + sum of additional sin terms for i >= 3
+
+if d == 1
+    % 1D case
+    f = cos(2*pi*X_grids{1});
+    u_init = cos(2*pi*X_grids{1});
+    
+elseif d >= 2
+    % Multi-dimensional case
+    % f(x,y,z,...) = cos(2*pi*x) * sin(-4*pi*y) * product_{i>=3} sin(2*pi*z_i)
+    f = cos(2*pi*X_grids{1}) .* sin(-4*pi*X_grids{2});
+    
+    % u_init(x,y,z,...) = cos(2*pi*x) * sin(8*pi*y) + sum_{i>=3} sin((i+1)*pi*z_i)
+    u_init = cos(2*pi*X_grids{1}) .* sin(8*pi*X_grids{2});
+    
+    % Additional terms for dimensions >= 3
+    for i = 3:d
+        f = f .* sin(2*pi*X_grids{i});
+        u_init = u_init + sin((i+1)*pi*X_grids{i});
+    end
+end
+
+%% 2. Operator Construction (Pre-computation)
+fprintf('Building Quantum Operator for Generic %dx%d A...\n', d, d);
+
+% Build Elliptic Operator in Spectral Domain
+% -∇·(A∇u) = sum_{i,j} A(i,j) * ∂²u/∂x_i∂x_j
+% In spectral space: Elliptic_spec = sum_{i,j} A(i,j) * D_i * D_j
+% where D_i is the spectral derivative in dimension i
+
+fprintf('Building spectral domain elliptic operator...\n');
+
+% Spectral eigenvalues (wavenumbers in Fourier space)
+% Build derivative operators for each dimension
+D_ops = cell(d, 1);
+for dim = 1:d
+    % Spectral derivative operator: 1i * k for each wavenumber
+    k_vals = 2*pi*[0:N/2-1, -N/2:-1]' / L;
+    D_ops{dim} = diag(1i * k_vals);
+end
+
+% Build full Elliptic operator using Kronecker products
+% For dimension d, we have nested Kronecker products
+Elliptic_spec = sparse(N^d, N^d);
+
+for i = 1:d
+    for j = 1:d
+        if A(i,j) ~= 0  % Only add non-zero terms
+            % Build the Kronecker product term for A(i,j) * D_i * D_j
+            
+            % Build Kronecker product across all dimensions
+            term = 1;
+            for dim = 1:d
+                if dim == i && dim == j
+                    % Both derivatives in same dimension: D^2
+                    term = kron(term, D_ops{dim}^2);
+                elseif dim == i
+                    % First derivative in dimension i
+                    term = kron(term, D_ops{dim});
+                elseif dim == j
+                    % First derivative in dimension j
+                    term = kron(term, D_ops{dim});
+                else
+                    % Identity in this dimension
+                    term = kron(term, eye(N));
+                end
+            end
+            
+            Elliptic_spec = Elliptic_spec + A(i,j) * term;
+        end
+    end
+end
+
+% Convert to full matrix and avoid division by zero (zero-frequency mode)
+Elliptic_spec = full(Elliptic_spec);
+Elliptic_spec(1,1) = 1;  % Avoid singularity at k=0
+
+% Inverse of Elliptic operator (for solving -∇·(A∇u) = f)
+invElliptic = diag(1 ./ diag(Elliptic_spec));
+
+% Quantum encoding of inverse Elliptic operator
+DiagEncoding = MakeUnitary(invElliptic);
+
+% Quantum Circuit: iQFT -> Diagonal(invElliptic) -> QFT
+% This implements: u = QFT * diag(1/Elliptic) * iQFT * f
+total_qubits = d * n;
+FG = GroupFourier(d, n);
+GF = FG.ctranspose();
+
+totalCircuit = qclab.QCircuit(total_qubits + 1);
+totalCircuit.push_back(GF);  % iQFT (inverse Fourier transform)
+totalCircuit.push_back(qclab.qgates.MatrixGate(0:total_qubits, DiagEncoding, "Diagonal"));
+totalCircuit.push_back(FG);  % QFT (forward Fourier transform)
+
+% Extract the quantum operator matrix
+totalMat = totalCircuit.matrix;
+Q_Op = totalMat(1:N^d, 1:N^d);
+
+fprintf('Operator constructed.\n');
+
+%% 3. Solve Elliptic Problem (No Time Evolution)
+fprintf('Solving elliptic problem: -∇·(A∇u) = f\n');
+fprintf('(N=%d, dimension=%d, total gridpoints=%d)...\n', N, d, N^d);
+
+% Classical solve: u_class = A^{-1} f in spectral space
+% -∇·(A∇u) = f  →  Elliptic_diag * U_hat = f_hat  →  U_hat = f_hat / Elliptic_diag
+u_h = fftn(f);
+% Extract diagonal for element-wise division
+Elliptic_diag_vals = diag(Elliptic_spec);
+Elliptic_diag_reshaped = reshape(Elliptic_diag_vals, grid_size);
+u_class = real(ifftn(u_h ./ Elliptic_diag_reshaped));
+
+% Quantum solve: apply quantum operator to source term
+% Q_Op encodes the action of inverse of elliptic operator
+f_vec = f(:);
+u_vec_quant = Q_Op * f_vec;
+u_quant = reshape(real(u_vec_quant), grid_size);
+
+fprintf('Elliptic problem solved.\n');
+
+
+
+%% 4. Compute Error Metrics
+diff_norm = norm(u_class(:) - u_quant(:), 'fro');
+abs_err_map = abs(u_class - u_quant);
+rel_err_map = abs_err_map ./ (abs(u_class) + 1e-10);
+
+
+fprintf('\n=== Error Metrics ===\n');
+fprintf('Final Frobenius Error: %.3e\n', diff_norm);
+fprintf('Max Absolute Error: %.3e\n', max(abs_err_map(:)));
+fprintf('Mean Absolute Error: %.3e\n', mean(abs_err_map(:)));
+fprintf('Final Energy (Classical): %.6f\n', energy_hist_class(end));
+fprintf('Final Energy (Quantum): %.6f\n', energy_hist_quant(end));
+
+
+%% 5. HDF5 Data Saving
+fprintf('\n=== Saving Results ===\n');
+
+% Save energy data
+h5_filename = sprintf('Heat%dD_%s_energy.h5', d, matrix_label);
+
+% Delete file if it already exists
+if isfile(h5_filename)
+    delete(h5_filename);
+end
+
+% Create file and datasets (single values for elliptic problem)
+h5create(h5_filename, '/energy_classical', [1 1], 'Datatype', 'double');
+h5create(h5_filename, '/energy_quantum', [1 1], 'Datatype', 'double');
+h5create(h5_filename, '/energy_error', [1 1], 'Datatype', 'double');
+
+% Write data
+h5write(h5_filename, '/energy_classical', energy_classical);
+h5write(h5_filename, '/energy_quantum', energy_quantum);
+h5write(h5_filename, '/energy_error', abs(energy_classical - energy_quantum));
+fprintf('Saved energy data to %s\n', h5_filename);
+
+% Save solution data (for dimensions <= 3, full data; for higher dims, just statistics)
+h5_filename_sol = sprintf('Heat%dD_%s_num.h5', d, matrix_label);
+
+% Delete file if it already exists
+if isfile(h5_filename_sol)
+    delete(h5_filename_sol);
+end
+
+if d <= 3
+    % Full field data for low dimensions
+    h5create(h5_filename_sol, '/u_classical', size(u_class), 'Datatype', 'double');
+    h5create(h5_filename_sol, '/u_quantum', size(u_quant), 'Datatype', 'double');
+    h5create(h5_filename_sol, '/error_field', size(abs_err_map), 'Datatype', 'double');
+    
+    h5write(h5_filename_sol, '/u_classical', u_class);
+    h5write(h5_filename_sol, '/u_quantum', u_quant);
+    h5write(h5_filename_sol, '/error_field', abs_err_map);
+else
+    % For high dimensions, save statistical information and 2D slices
+    mid_idx = floor(N/2);
+    
+    % Extract 2D slice by fixing all dimensions >= 3 to middle index
+    if d == 4
+        slice_cl = u_class(:, :, mid_idx, mid_idx);
+        slice_qu = u_quant(:, :, mid_idx, mid_idx);
+        slice_err = abs_err_map(:, :, mid_idx, mid_idx);
+    elseif d == 5
+        slice_cl = u_class(:, :, mid_idx, mid_idx, mid_idx);
+        slice_qu = u_quant(:, :, mid_idx, mid_idx, mid_idx);
+        slice_err = abs_err_map(:, :, mid_idx, mid_idx, mid_idx);
+    elseif d >= 6
+        slice_cl = u_class(:, :, mid_idx, mid_idx, mid_idx, mid_idx);
+        slice_qu = u_quant(:, :, mid_idx, mid_idx, mid_idx, mid_idx);
+        slice_err = abs_err_map(:, :, mid_idx, mid_idx, mid_idx, mid_idx);
+    end
+    
+    h5create(h5_filename_sol, '/u_classical_slice', size(slice_cl), 'Datatype', 'double');
+    h5create(h5_filename_sol, '/u_quantum_slice', size(slice_qu), 'Datatype', 'double');
+    h5create(h5_filename_sol, '/error_slice', size(slice_err), 'Datatype', 'double');
+    
+    h5write(h5_filename_sol, '/u_classical_slice', slice_cl);
+    h5write(h5_filename_sol, '/u_quantum_slice', slice_qu);
+    h5write(h5_filename_sol, '/error_slice', slice_err);
+end
+
+% Save grid and domain info
+h5create(h5_filename_sol, '/x_coords', size(x), 'Datatype', 'double');
+h5create(h5_filename_sol, '/grid_size', [1 d], 'Datatype', 'uint32');
+h5create(h5_filename_sol, '/domain_bounds', [1 2], 'Datatype', 'double');
+
+h5write(h5_filename_sol, '/x_coords', x);
+h5write(h5_filename_sol, '/grid_size', uint32(grid_size));
+h5write(h5_filename_sol, '/domain_bounds', [0, L]);
+fprintf('Saved solution data to %s\n', h5_filename_sol);
+
+%% 6. Visualization - Adaptive Based on Dimension
+fprintf('Creating visualizations for d=%d...\n', d);
+
+create_adaptive_visualization(d, N, n, steps, x, ...
+    u_class, u_quant, abs_err_map, ...
+    energy_hist_class, energy_hist_quant, energy_err, ...
+    diff_norm, alpha, dt, dx, grid_size, matrix_label);
+
+fprintf('\n========== RESULTS SAVED ==========\n');
+fprintf('HDF5 Data Files:\n');
+fprintf('  - Heat%dD_%s_energy.h5 (Energy evolution data)\n', d, matrix_label);
+fprintf('  - Heat%dD_%s_num.h5 (Solution fields and error data)\n', d, matrix_label);
+fprintf('\nPNG Visualization Files:\n');
+fprintf('  - Heat%dD_%s_energy.png (Energy evolution)\n', d, matrix_label);
+fprintf('  - Heat%dD_%s_error.png (Error analysis)\n', d, matrix_label);
+fprintf('===================================\n');
+
+%% ========== ADAPTIVE VISUALIZATION FUNCTION ==========
+function create_adaptive_visualization(d, N, n, steps, x, ...
+    u_class, u_quant, abs_err_map, ...
+    energy_hist_class, energy_hist_quant, energy_err, ...
+    diff_norm, alpha, dt, dx, grid_size, matrix_label)
+
+mid_idx = floor(N/2);
+
+% Plot 1: Energy Comparison (single values for elliptic problem)
+figure('Position', [50, 50, 1000, 400], 'Name', sprintf('Energy Solution (%dD)', d), 'NumberTitle', 'off');
+
+subplot(1, 2, 1);
+bar([energy_hist_class, energy_hist_quant], 0.5);
+set(gca, 'XTickLabel', {'Classical', 'Quantum'});
+ylabel('Energy', 'FontSize', 12);
+title(sprintf('Energy Values (d=%d, Matrix=%s)', d, matrix_label));
+grid on;
+legend(gca, 'Energy');
+
+subplot(1, 2, 2);
+axis off;
+energy_error = abs(energy_hist_class - energy_hist_quant);
+text(0.05, 0.95, '=== Energy Summary ===', 'FontWeight', 'bold', 'FontSize', 12, ...
+    'VerticalAlignment', 'top');
+text(0.05, 0.80, sprintf('Classical Energy: %.6e', energy_hist_class), 'FontSize', 11, ...
+    'VerticalAlignment', 'top');
+text(0.05, 0.65, sprintf('Quantum Energy: %.6e', energy_hist_quant), 'FontSize', 11, ...
+    'VerticalAlignment', 'top');
+text(0.05, 0.50, sprintf('Energy Error: %.6e', energy_error), 'FontSize', 11, ...
+    'VerticalAlignment', 'top', 'Color', 'red');
+box on;
+
+% Save to PNG
+png_filename_energy = sprintf('Heat%dD_%s_energy.png', d, matrix_label);
+saveas(gcf, png_filename_energy);
+fprintf('Saved energy figure to %s\n', png_filename_energy);
+close;
+
+% Plot 2: Solution and Error figure
+if d == 1
+    % 1D Case
+    figure('Position', [50, 50, 1400, 700], 'Name', sprintf('Solutions & Error (%dD)', d), 'NumberTitle', 'off');
+    
+    % Classical solution
+    subplot(2, 3, 1);
+    plot(x, u_class, 'b-', 'LineWidth', 2);
+    title('Classical Solution');
+    xlabel('x'); ylabel('u');
+    grid on;
+    
+    % Quantum solution
+    subplot(2, 3, 2);
+    plot(x, u_quant, 'r-', 'LineWidth', 2);
+    title('Quantum Solution');
+    xlabel('x'); ylabel('u');
+    grid on;
+    
+    % Error
+    subplot(2, 3, 3);
+    semilogy(x, abs_err_map, 'k-', 'LineWidth', 2);
+    title(sprintf('Absolute Error\nMax: %.3e', max(abs_err_map(:))));
+    xlabel('x'); ylabel('Error');
+    grid on;
+    
+    % Metrics
+    subplot(2, 3, 4:6);
+    axis off;
+    grid_str = sprintf(repmat('%d×', 1, d-1) + "%d", grid_size);
+    text(0.05, 0.95, sprintf('=== Solution & Error Metrics (%dD) ===', d), 'FontWeight', 'bold', 'FontSize', 11, ...
+        'VerticalAlignment', 'top');
+    text(0.05, 0.85, sprintf('Dimension: %d', d), 'FontSize', 10, 'VerticalAlignment', 'top');
+    text(0.05, 0.77, sprintf('Grid: %s', grid_str), 'FontSize', 9, 'VerticalAlignment', 'top');
+    text(0.05, 0.69, sprintf('Total Points: %d', N^d), 'FontSize', 9, 'VerticalAlignment', 'top');
+    text(0.05, 0.61, sprintf('Total Qubits: %d', d*n), 'FontSize', 9, 'VerticalAlignment', 'top');
+    text(0.05, 0.50, '--- Error Metrics ---', 'FontWeight', 'bold', 'FontSize', 10, 'VerticalAlignment', 'top');
+    text(0.05, 0.42, sprintf('Frobenius Norm: %.3e', diff_norm), 'FontSize', 9, 'VerticalAlignment', 'top');
+    text(0.05, 0.35, sprintf('Max Absolute: %.3e', max(abs_err_map(:))), 'FontSize', 9, 'VerticalAlignment', 'top');
+    text(0.05, 0.28, sprintf('Mean Absolute: %.3e', mean(abs_err_map(:))), 'FontSize', 9, 'VerticalAlignment', 'top');
+    text(0.05, 0.17, '--- Parameters ---', 'FontWeight', 'bold', 'FontSize', 10, 'VerticalAlignment', 'top');
+    text(0.05, 0.09, sprintf('dt: %.2e, dx: %.4f', dt, dx), 'FontSize', 9, 'VerticalAlignment', 'top');
+    text(0.05, 0.02, sprintf('Steps: %d', steps), 'FontSize', 9, 'VerticalAlignment', 'top');
+    box on;
+    
+elseif d == 2
+    % 2D Case
+    figure('Position', [50, 50, 1600, 700], 'Name', sprintf('Solutions & Error (%dD)', d), 'NumberTitle', 'off');
+    
+    % Classical solution
+    subplot(1, 3, 1);
+    imagesc(x, x, u_class');
+    axis square; colorbar;
+    title('Classical Solution');
+    xlabel('x'); ylabel('y');
+    set(gca, 'YDir', 'normal');
+    
+    % Quantum solution
+    subplot(1, 3, 2);
+    imagesc(x, x, u_quant');
+    axis square; colorbar;
+    title('Quantum Solution');
+    xlabel('x'); ylabel('y');
+    set(gca, 'YDir', 'normal');
+    
+    % Error
+    subplot(1, 3, 3);
+    imagesc(x, x, abs_err_map');
+    axis square; colorbar;
+    title(sprintf('Absolute Error\nMax: %.3e', max(abs_err_map(:))));
+    xlabel('x'); ylabel('y');
+    set(gca, 'YDir', 'normal');
+    
+elseif d == 3
+    % 3D Case - show z-slices
+    z_slice = floor(N/2);
+    figure('Position', [50, 50, 1600, 700], 'Name', sprintf('Solutions & Error (%dD)', d), 'NumberTitle', 'off');
+    
+    % Classical solution slice
+    subplot(1, 3, 1);
+    imagesc(x, x, u_class(:, :, z_slice)');
+    axis square; colorbar;
+    title(sprintf('Classical (z=%.3f)', x(z_slice)));
+    xlabel('x'); ylabel('y');
+    set(gca, 'YDir', 'normal');
+    
+    % Quantum solution slice
+    subplot(1, 3, 2);
+    imagesc(x, x, u_quant(:, :, z_slice)');
+    axis square; colorbar;
+    title(sprintf('Quantum (z=%.3f)', x(z_slice)));
+    xlabel('x'); ylabel('y');
+    set(gca, 'YDir', 'normal');
+    
+    % Error slice
+    subplot(1, 3, 3);
+    imagesc(x, x, abs_err_map(:, :, z_slice)');
+    axis square; colorbar;
+    title(sprintf('Error (z=%.3f)\nMax: %.3e', x(z_slice), max(abs_err_map(:, :, z_slice), [], 'all')));
+    xlabel('x'); ylabel('y');
+    set(gca, 'YDir', 'normal');
+else
+    % Higher dimensional case - show 2D slice
+    mid_idx = floor(N/2);
+    if d == 4
+        slice_cl = u_class(:, :, mid_idx, mid_idx);
+        slice_qu = u_quant(:, :, mid_idx, mid_idx);
+        slice_err = abs_err_map(:, :, mid_idx, mid_idx);
+    elseif d == 5
+        slice_cl = u_class(:, :, mid_idx, mid_idx, mid_idx);
+        slice_qu = u_quant(:, :, mid_idx, mid_idx, mid_idx);
+        slice_err = abs_err_map(:, :, mid_idx, mid_idx, mid_idx);
+    else
+        slice_cl = u_class(:, :, mid_idx, mid_idx, mid_idx, mid_idx);
+        slice_qu = u_quant(:, :, mid_idx, mid_idx, mid_idx, mid_idx);
+        slice_err = abs_err_map(:, :, mid_idx, mid_idx, mid_idx, mid_idx);
+    end
+    
+    figure('Position', [50, 50, 1600, 700], 'Name', sprintf('Solutions & Error (%dD)', d), 'NumberTitle', 'off');
+    
+    % Classical solution slice
+    subplot(1, 3, 1);
+    imagesc(x, x, slice_cl');
+    axis square; colorbar;
+    title(sprintf('Classical (2D slice @ center)'));
+    xlabel('Dim 1'); ylabel('Dim 2');
+    set(gca, 'YDir', 'normal');
+    
+    % Quantum solution slice
+    subplot(1, 3, 2);
+    imagesc(x, x, slice_qu');
+    axis square; colorbar;
+    title(sprintf('Quantum (2D slice @ center)'));
+    xlabel('Dim 1'); ylabel('Dim 2');
+    set(gca, 'YDir', 'normal');
+    
+    % Error slice
+    subplot(1, 3, 3);
+    imagesc(x, x, slice_err');
+    axis square; colorbar;
+    title(sprintf('Error (2D slice @ center)\nMax: %.3e', max(slice_err(:))));
+    xlabel('Dim 1'); ylabel('Dim 2');
+    set(gca, 'YDir', 'normal');
+end
+
+% Save solutions and error figure
+png_filename_error = sprintf('Heat%dD_%s_error.png', d, matrix_label);
+saveas(gcf, png_filename_error);
+fprintf('Saved solutions & error figure to %s\n', png_filename_error);
+close;
+
+end

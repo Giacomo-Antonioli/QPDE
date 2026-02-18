@@ -1,5 +1,4 @@
 function f = fftfreq(N, d)
-%FFTFREQ Fourier frequencies (NumPy-compatible)
 %   f = fftfreq(N, d) returns frequency bins for FFT
 %
 %   N : number of points
