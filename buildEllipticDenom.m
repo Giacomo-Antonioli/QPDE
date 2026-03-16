@@ -21,5 +21,5 @@ function denom = buildEllipticDenom(A, N_vecs, dx, dim)
         end
     end
 
-    denom(1) = 1;  
+    % denom(1) = 1;  
 end

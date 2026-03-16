@@ -14,6 +14,7 @@ function k = spectral_eigenvalues(N, L)
 
     freq = fftfreq(N, L/N);
     k    = 2i * pi * freq;
+    k(1)=1;
 end
 
 function f = fftfreq(N, d)
@@ -31,4 +32,5 @@ function f = fftfreq(N, d)
     else
         f = [0:((N-1)/2), -((N-1)/2):-1] / (N * d);
     end
+
 end
