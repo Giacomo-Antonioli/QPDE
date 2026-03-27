@@ -157,13 +157,15 @@ end
 % Returns the axis handle; colorbar management is left to the caller.
 function ax = plot3d_panel(tile_idx, data, ttl, nx, ny, nz, fs)
     ax = nexttile(tile_idx);
-     slice(ax, data, 1:nx, [], []);hold(ax, 'on')
+    slice(ax, data, 1:nx, [], []);hold(ax, 'on')
+    slice(ax, data, [], [], 1:nz);
     slice(ax, data, [], 1:ny, [])
-     slice(ax, data, [], [], 1:nz);
+ 
      
     shading(ax, 'interp'); axis(ax, 'equal'); axis(ax, 'tight');
     title(ax, ttl, 'FontSize', fs);
-    view(ax, 3);
+    
+    view(ax, [-37.5 + 180, 30]);
     set(ax, 'FontSize', fs, 'XTickLabel', [], 'YTickLabel', [], 'ZTickLabel', []);
     hold(ax, 'off')
 end

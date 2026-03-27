@@ -8,11 +8,13 @@ warning('off', 'all')
 dt    = 1e-3;   % Time step (diffusion solver only)
 steps = 100;    % Number of time steps (diffusion solver only)
 
+diffusion=false;
+elliptic=true;
 %% =========================================================
 %  CONFIGURATION GRID  
 % ==========================================================
-dims_to_test = [2];      
-ns_to_test   = [5];      
+dims_to_test = [3];      
+ns_to_test   = [3];      
 
 % ---- A MATRIX CONFIGURATIONS --------------------------------
 % Each entry has:
@@ -30,7 +32,7 @@ A_configs = { ...
 % A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [10,0;0,1], 'dims', [2]);
 % A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [100,0;0,1], 'dims', [2]);
 % A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [100,0;0,0.1], 'dims', [2]);
-A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [10000,0;0,1], 'dims', [2]);
+% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [10000,0;0,1], 'dims', [2]);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [3,1,0.5;1,3,1;0.5,1,3], 'dims', [3]);
 % A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [10,0,0;0,1,0;0,0,1], 'dims', [3]);
@@ -98,6 +100,7 @@ for iDim = 1:numel(dims_to_test)
             end
 
             %% ---- (1) DIFFUSION SOLVER --------------------------------
+            if diffusion
             test_id = test_id + 1;
             tag = sprintf('[%02d/%02d | Diffusion | dim=%d | N=2^%d=%d | A=%s]', ...
                           test_id, n_total, dim, n, N, Alabel);
@@ -117,28 +120,29 @@ for iDim = 1:numel(dims_to_test)
             results(test_id).N      = N;
             results(test_id).Alabel = Alabel;
             fprintf('  Status: %s\n\n', results(test_id).status);
-
+            end
             % ---- (2) ELLIPTIC SOLVER ---------------------------------
-            % test_id = test_id + 1;
-            % tag = sprintf('[%02d/%02d | Elliptic  | dim=%d | N=2^%d=%d | A=%s]', ...
-            %               test_id, n_total, dim, n, N, Alabel);
-            % fprintf('%s\n', tag);
-            % fprintf('  A =\n'); disp(A);
-            % % try
-            %     GenericElliptic_QPDE(fEll, A, N, dim, uTrueEll);
-            %     results(test_id).status = 'PASS';
-            % % catch ME
-            % %     results(test_id).status = 'FAIL';
-            % %     results(test_id).error  = ME.message;
-            % %     fprintf('  !! ERROR: %s\n', ME.message);
-            % % end
-            % results(test_id).tag    = tag;
-            % results(test_id).solver = 'Elliptic';
-            % results(test_id).dim    = dim;
-            % results(test_id).N      = N;
-            % results(test_id).Alabel = Alabel;
-            % fprintf('  Status: %s\n\n', results(test_id).status);
-
+            if elliptic
+            test_id = test_id + 1;
+            tag = sprintf('[%02d/%02d | Elliptic  | dim=%d | N=2^%d=%d | A=%s]', ...
+                          test_id, n_total, dim, n, N, Alabel);
+            fprintf('%s\n', tag);
+            fprintf('  A =\n'); disp(A);
+            % try
+                GenericElliptic_QPDE(fEll, A, N, dim, uTrueEll);
+                results(test_id).status = 'PASS';
+            % catch ME
+            %     results(test_id).status = 'FAIL';
+            %     results(test_id).error  = ME.message;
+            %     fprintf('  !! ERROR: %s\n', ME.message);
+            % end
+            results(test_id).tag    = tag;
+            results(test_id).solver = 'Elliptic';
+            results(test_id).dim    = dim;
+            results(test_id).N      = N;
+            results(test_id).Alabel = Alabel;
+            fprintf('  Status: %s\n\n', results(test_id).status);
+            end
         end % iA
     end % iN
 end % iDim
