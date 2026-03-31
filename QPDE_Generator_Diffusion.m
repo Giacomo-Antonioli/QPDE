@@ -14,9 +14,9 @@ dx     = 1.0 / N;         % Assuming domain length L = 1.0
 
 
 OP_vals = buildDiffusionDenom(A, N_vecs, dx, d);
+midstep=(1 - dt * OP_vals(:));
 
-
-Inv_OP_vals = 1 ./ (1 - dt * OP_vals(:));
+Inv_OP_vals = 1 ./midstep ;
 
 alpha = max(abs(Inv_OP_vals));
 Normalized_Vals = Inv_OP_vals / alpha;
