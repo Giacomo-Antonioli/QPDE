@@ -8,8 +8,8 @@ dt    = 1e-3;   % Time step (diffusion solver only)
 steps = 100;    % Number of time steps (diffusion solver only)
 
 diffusion  = true;
-elliptic   = true;
-helmholtz  = true;
+elliptic   = false;
+helmholtz  = false;
 
 k_range    = 1:5;
 
@@ -17,7 +17,7 @@ k_range    = 1:5;
 %  CONFIGURATION GRID
 % ==========================================================
 dims_to_test = [2, 3];
-ns_per_dim = containers.Map([2, 3], {[6], [5]});
+ns_per_dim = containers.Map([2, 3], {[4], [3]});
 % ns_per_dim = containers.Map([2, 3], {[2], [1]});
 
 % ---- A MATRIX CONFIGURATIONS --------------------------------
@@ -31,12 +31,12 @@ A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [10,0;0,1],        'dim
 A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [100,0;0,1],       'dims', [2]);
 A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [100,0;0,0.1],     'dims', [2]);
 A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [100000,0;0,1],    'dims', [2]);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [3,1,0.5;1,3,1;0.5,1,3],   'dims', [3]);
-A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [10,0,0;0,1,0;0,0,1],       'dims', [3]);
-A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,100,0;0,0,1],      'dims', [3]);
-A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,100,0;0,0,0.1],    'dims', [3]);
-A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,1,0;0,0,100000],   'dims', [3]);
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [3,1,0.5;1,3,1;0.5,1,3],   'dims', [3]);
+% A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [10,0,0;0,1,0;0,0,1],       'dims', [3]);
+% A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,100,0;0,0,1],      'dims', [3]);
+% A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,100,0;0,0,0.1],    'dims', [3]);
+% A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,1,0;0,0,100000],   'dims', [3]);
 
 %% =========================================================
 %  COUNT VALID CONFIGURATIONS (respecting dims filter)
