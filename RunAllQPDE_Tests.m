@@ -11,33 +11,32 @@ diffusion  = true;
 elliptic   = true;
 helmholtz  = true;
 
-% Helmholtz: k ranges 1:5, solver receives k^2
 k_range    = 1:5;
+
 %% =========================================================
-%  CONFIGURATION GRID  
+%  CONFIGURATION GRID
 % ==========================================================
-dims_to_test        = [2,3];      
-ns_to_test_diff     = [6];      % n values for Diffusion
-ns_to_test_ell_helm = [6];      % n values for Elliptic & Helmholtz
+dims_to_test = [2, 3];
+ns_per_dim = containers.Map([2, 3], {[6], [5]});
+% ns_per_dim = containers.Map([2, 3], {[2], [1]});
 
 % ---- A MATRIX CONFIGURATIONS --------------------------------
 A_configs = { ...
-   struct('label', 'Identity', 'fun', @(d) eye(d), 'dims', [])
+    struct('label', 'Identity', 'fun', @(d) eye(d), 'dims', [])
 };
 
 % HARDCODED MATRICES (add new ones here — set 'dims' to restrict dimension)
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [3,1;1,2], 'dims', [2]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [10,0;0,1], 'dims', [2]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [100,0;0,1], 'dims', [2]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [100,0;0,0.1], 'dims', [2]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [100000,0;0,1], 'dims', [2]);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [3,1,0.5;1,3,1;0.5,1,3], 'dims', [3]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [10,0,0;0,1,0;0,0,1], 'dims', [3]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [1,0,0;0,100,0;0,0,1], 'dims', [3]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [1,0,0;0,100,0;0,0,1], 'dims', [3]);
-% A_configs{end+1} = struct('label', 'Custom',    'fun', @(d) [1,0,0;0,1,0;0,0,100000], 'dims', [3]);
-
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [3,1;1,2],         'dims', [2]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [10,0;0,1],        'dims', [2]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [100,0;0,1],       'dims', [2]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [100,0;0,0.1],     'dims', [2]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [100000,0;0,1],    'dims', [2]);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [3,1,0.5;1,3,1;0.5,1,3],   'dims', [3]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [10,0,0;0,1,0;0,0,1],       'dims', [3]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,100,0;0,0,1],      'dims', [3]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,100,0;0,0,0.1],    'dims', [3]);
+A_configs{end+1} = struct('label', 'Custom', 'fun', @(d) [1,0,0;0,1,0;0,0,100000],   'dims', [3]);
 
 %% =========================================================
 %  COUNT VALID CONFIGURATIONS (respecting dims filter)
@@ -45,20 +44,23 @@ A_configs = { ...
 n_valid_A_diff     = 0;
 n_valid_A_ell_helm = 0;
 for iDim = 1:numel(dims_to_test)
+    dim        = dims_to_test(iDim);
+    ns_to_test = ns_per_dim(dim);
     for iA = 1:numel(A_configs)
         d_filter = A_configs{iA}.dims;
-        if isempty(d_filter) || ismember(dims_to_test(iDim), d_filter)
-            n_valid_A_diff     = n_valid_A_diff     + numel(ns_to_test_diff);
-            n_valid_A_ell_helm = n_valid_A_ell_helm + numel(ns_to_test_ell_helm);
+        if isempty(d_filter) || ismember(dim, d_filter)
+            n_valid_A_diff     = n_valid_A_diff     + numel(ns_to_test);
+            n_valid_A_ell_helm = n_valid_A_ell_helm + numel(ns_to_test);
         end
     end
 end
 
-n_valid_dimN_helm = numel(dims_to_test) * numel(ns_to_test_ell_helm);
+% Helmholtz: dim=2 only
+n_valid_dimN_helm = numel(ns_per_dim(2)) * numel(k_range);
 
-n_total = n_valid_A_diff     *  diffusion            + ...
-          n_valid_A_ell_helm *  elliptic              + ...
-          n_valid_dimN_helm  *  helmholtz * numel(k_range);
+n_total = n_valid_A_diff     *  diffusion                    + ...
+          n_valid_A_ell_helm *  elliptic                     + ...
+          n_valid_dimN_helm  * (helmholtz );
 
 fprintf('======================================================\n');
 fprintf('  QPDE Test Suite  |  %d total configurations\n', n_total);
@@ -71,7 +73,8 @@ test_id = 0;
 results = struct();
 
 for iDim = 1:numel(dims_to_test)
-    dim = dims_to_test(iDim);
+    dim        = dims_to_test(iDim);
+    ns_to_test = ns_per_dim(dim);   
 
     fDiff       = make_f_diff(dim);
     uInit       = make_u_init(dim);
@@ -79,19 +82,14 @@ for iDim = 1:numel(dims_to_test)
     fEll        = make_f_ell(dim);
     uTrueEll    = make_u_true_ell(dim);
 
-    %% ---- (1) DIFFUSION SOLVER — own n loop --------------------------
+    %% ---- (1) DIFFUSION SOLVER -----------------------------------
     if diffusion
-        for iN = 1:numel(ns_to_test_diff)
-            n = ns_to_test_diff(iN);
+        for iN = 1:numel(ns_to_test)
+            n = ns_to_test(iN);
             N = 2^n;
 
             for iA = 1:numel(A_configs)
                 d_filter = A_configs{iA}.dims;
-                if dim==3
-                    n = 1;
-                    N = 2^n;
-                end
-
                 if ~isempty(d_filter) && ~ismember(dim, d_filter); continue; end
 
                 A      = A_configs{iA}.fun(dim);
@@ -123,17 +121,17 @@ for iDim = 1:numel(dims_to_test)
                 results(test_id).N      = N;
                 results(test_id).Alabel = Alabel;
                 results(test_id).k      = NaN;
-                fprintf('  Status: %s\n\n', results(test_id).status);
+                % fprintf('  Status: %s\n\n', results(test_id).status);
             end % iA
-        end % iN diff
+        end % iN
     end
 
-    %% ---- (2) ELLIPTIC & (3) HELMHOLTZ — shared n loop ---------------
-    for iN = 1:numel(ns_to_test_ell_helm)
-        n = ns_to_test_ell_helm(iN);
+    %% ---- (2) ELLIPTIC & (3) HELMHOLTZ ---------------------------
+    for iN = 1:numel(ns_to_test)
+        n = ns_to_test(iN);
         N = 2^n;
 
-        %% ---- (2) ELLIPTIC SOLVER ------------------------------------
+        %% ---- (2) ELLIPTIC SOLVER --------------------------------
         if elliptic
             for iA = 1:numel(A_configs)
                 d_filter = A_configs{iA}.dims;
@@ -172,8 +170,8 @@ for iDim = 1:numel(dims_to_test)
             end % iA
         end
 
-        %% ---- (3) HELMHOLTZ SOLVER — no A matrix ---------------------
-        if helmholtz
+        %% ---- (3) HELMHOLTZ — dim=2 only, no A loop --------------
+        if helmholtz && dim == 2
             for k_val = k_range
                 k_sq = k_val^2;
                 test_id = test_id + 1;
@@ -194,7 +192,7 @@ for iDim = 1:numel(dims_to_test)
                 results(test_id).N      = N;
                 results(test_id).Alabel = 'N/A';
                 results(test_id).k      = k_val;
-                fprintf('  Status: %s\n\n', results(test_id).status);
+                %fprintf('  Status: %s\n\n', results(test_id).status);
             end % k_val
         end
 

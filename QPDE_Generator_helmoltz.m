@@ -18,7 +18,7 @@ dx     = 1.0 / N;
 denom = buildHelmoltzDenom(k, N_vecs, dx, d);
 
 invOP = diag(1 ./ denom(:));
-alpha=norm(invOP,'inf')
+alpha=norm(invOP,'inf');
 invOP=invOP/alpha;
 DiagEncoding = MakeUnitary(invOP);
 

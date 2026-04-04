@@ -22,7 +22,7 @@ f_h       = FG * f_flatten;
 
 %% 4. Build 1D eigenvalue diagonal matrix
 L    = Nx * dx;
-k    = spectral_eigenvalues(Nx, true, L);
+k    = spectral_eigenvalues(Nx, false, L);
 D    = diag(k);
 Imat = eye(Nx);
 
@@ -65,7 +65,9 @@ for i = 1:dim
     end
 end
 %% 6. Invert and solve
+Elliptic_spec(1,1)=1;
 inverse_Elliptic = inv(Elliptic_spec);
+
 u_flatten        = GF * inverse_Elliptic * f_h;
 
 %% 7. Reshape back

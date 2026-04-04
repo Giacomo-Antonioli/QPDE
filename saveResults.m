@@ -21,8 +21,8 @@ folderName = sprintf('Results/Results_d%d_%s', d, timestamp);
     if flagUtrue && ~isempty(ground_truth)
         h5create(h5file, '/u_true', size(ground_truth));
         h5write( h5file, '/u_true', double(ground_truth));
-        fprintf('Saved u_generic, u_quantum, and u_true to %s\n', folderName);
-    else
-        fprintf('Saved u_generic and u_quantum to %s\n', folderName);
+        %fprintf('Saved u_generic, u_quantum, and u_true to %s\n', folderName);
+    %end
+        %fprintf('Saved u_generic and u_quantum to %s\n', folderName);
     end
 end

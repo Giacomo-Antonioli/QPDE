@@ -38,11 +38,11 @@ if flagUtrue
     rel_err_classical = abs_err_classical / norm(ground_truth(:));
     rel_err_quantum   = abs_err_quantum   / norm(ground_truth(:));
 
-    fprintf('\n--- Absolute Errors (vs Ground Truth) ---\n');
-    fprintf('Classical Absolute Error: %.4e\n', abs_err_classical);
-    fprintf('Quantum   Absolute Error: %.4e\n', abs_err_quantum);
+    % fprintf('\n--- Absolute Errors (vs Ground Truth) ---\n');
+    % fprintf('Classical Absolute Error: %.4e\n', abs_err_classical);
+    % fprintf('Quantum   Absolute Error: %.4e\n', abs_err_quantum);
 
-    fprintf('\n--- Relative Errors (vs Ground Truth) ---\n');
+    % fprintf('\n--- Relative Errors (vs Ground Truth) ---\n');
     fprintf('Classical Relative Error: %.4e\n', rel_err_classical);
     fprintf('Quantum   Relative Error: %.4e\n', rel_err_quantum);
 else

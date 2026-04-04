@@ -41,8 +41,8 @@ function saveResults_Diffusion(u_generic, u_quantum, E_class, E_quant, d, flagUt
         h5create(h5file, '/E_gt_history', size(E_gt));
         h5write( h5file, '/E_gt_history', double(E_gt));
         
-        fprintf('Saved u_generic, u_quantum, energy histories, u_true, and E_gt_history to %s\n', folderName);
-    else
-        fprintf('Saved u_generic, u_quantum, and energy histories to %s\n', folderName);
+        % fprintf('Saved u_generic, u_quantum, energy histories, u_true, and E_gt_history to %s\n', folderName);
+    % else
+        % fprintf('Saved u_generic, u_quantum, and energy histories to %s\n', folderName);
     end
 end

@@ -1,10 +1,8 @@
-function u = solver_Diffusion_generic(f, A, N_vecs, dx, dt, dim, Nx)
+function u = solver_Diffusion_generic(f, N_vecs, dim, Nx, denom_class)
     %   Spectral solver for (I - dt * div(A grad)) u = f
- 
+    %   denom_class: pre-computed 1 ./ (1 - dt * L_h), permuted and flattened
     dfmtx = fft(eye(Nx));
-    GF_1d = dfmtx' / Nx;        
-
-
+    GF_1d = dfmtx' / Nx;
     FG = dfmtx;
     GF = GF_1d;
     for k = 2:dim
@@ -12,22 +10,10 @@ function u = solver_Diffusion_generic(f, A, N_vecs, dx, dt, dim, Nx)
         GF = kron(GF, GF_1d);
     end
 
-
     f_values  = reshape(f, N_vecs);
     f_flatten = reshape(permute(f_values, dim:-1:1), [], 1);
-    
-
-    f_h = FG * f_flatten;
-
-    denom_grid = buildDiffusionDenom(A, N_vecs, dx, dim);
-
-    denom_flatten = reshape(permute(denom_grid, dim:-1:1), [], 1);
-    
-    Diffusion_spec_diag = 1 - dt * denom_flatten;
-    
-    u_h = f_h ./ Diffusion_spec_diag;
-
+    f_h       = FG * f_flatten;
+    u_h       = f_h .* denom_class;   
     u_flatten = GF * u_h;
-
     u = real(ipermute(reshape(u_flatten, fliplr(N_vecs)), dim:-1:1));
 end
