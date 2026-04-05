@@ -1,0 +1,16 @@
+{
+  "label": "Identity",
+  "matrix": [
+    [
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "condition_number": 1.3158273408348595,
+  "error_classical": 1.655399538474461e-14,
+  "error_quantum": 6.235982576498307e-14
+}

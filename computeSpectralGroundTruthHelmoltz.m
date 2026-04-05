@@ -3,7 +3,7 @@ function ground_truth = computeSpectralGroundTruthHelmoltz(f_vals, k, N, d, dx)
     L      = N * dx;
     k_vecs = cell(1, d);
     for i = 1:d
-        k_vecs{i} = spectral_eigenvalues(N, true, L);  % k(1)=1 by default
+        k_vecs{i} = spectral_eigenvalues(N, false, L);  
     end
     K_grids = cell(1, d);
     [K_grids{1:d}] = ndgrid(k_vecs{:});

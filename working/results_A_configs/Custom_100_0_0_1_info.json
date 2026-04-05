@@ -1,0 +1,16 @@
+{
+  "label": "Custom_100_0_0_1",
+  "matrix": [
+    [
+      100,
+      0
+    ],
+    [
+      0,
+      1
+    ]
+  ],
+  "condition_number": 16.9492807121604,
+  "error_classical": 1.216764243767169e-14,
+  "error_quantum": 8.215939946179275e-14
+}

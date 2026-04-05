@@ -18,7 +18,8 @@ u_quantum = op * f_flat;
 
 %% --- Ground Truth (spectral, optional) ---
 if flagUtrue
-    ground_truth = computeSpectralGroundTruth(f_vals, A, N, d, dx);
+    % ground_truth = computeSpectralGroundTruth(f_vals, A, N, d, dx);
+    ground_truth=u_true(grids{:});
 end
 
 %% --- Visualize ---
@@ -38,9 +39,9 @@ if flagUtrue
     rel_err_classical = abs_err_classical / norm(ground_truth(:));
     rel_err_quantum   = abs_err_quantum   / norm(ground_truth(:));
 
-    % fprintf('\n--- Absolute Errors (vs Ground Truth) ---\n');
-    % fprintf('Classical Absolute Error: %.4e\n', abs_err_classical);
-    % fprintf('Quantum   Absolute Error: %.4e\n', abs_err_quantum);
+    fprintf('\n--- Absolute Errors (vs Ground Truth) ---\n');
+    fprintf('Classical Absolute Error: %.4e\n', abs_err_classical);
+    fprintf('Quantum   Absolute Error: %.4e\n', abs_err_quantum);
 
     % fprintf('\n--- Relative Errors (vs Ground Truth) ---\n');
     fprintf('Classical Relative Error: %.4e\n', rel_err_classical);

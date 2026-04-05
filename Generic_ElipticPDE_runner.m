@@ -1,15 +1,14 @@
 %% Main Script to Test GenericQuantumDiffusion
-clear; clc; close all;
+ close all;
+clear; clc;
 
-
-dim = 3;            
-n  = 5;
+dim = 2;            
+n  = 6;
 N=2^n;
 
 
 if dim == 2
-    %A = eye(2);
-    A=[100000,0;0,1];
+    A=[1,0;0,1];
 elseif dim == 3
     A = eye(3); 
 end
@@ -28,8 +27,13 @@ elseif dim == 3
  
 end
 
+fprintf("I\n")
+for n=4:6
+    N=2^n;
+
 fprintf('Starting %dD Simulation with N=%d...\n', dim, N);
 
-GenericElliptic_QPDE(f_handle, A, N, dim,u_true)%
+GenericElliptic_QPDE(f_handle, A, N, dim,u_true);
+end
 
-fprintf('Done.\n');
+

@@ -18,23 +18,8 @@ function [u_class, u_quant, u_gt, E_class, E_quant, E_gt] = ...
     E_ref = new_energy(ground_truth, f_vals, A, N, dx, d);
 
     % --- Pre-compute spectral denominator for ground truth solver ---
-    k_vecs = cell(1, d);
-    for i = 1:d
-        L = N_vecs(i) * dx;
-        k_vecs{i} = spectral_eigenvalues(N_vecs(i), false, L);
-    end
-    K_grids = cell(1, d);
-    [K_grids{1:d}] = ndgrid(k_vecs{:});
+    L_h=buildDiffusionDenom(A, N_vecs, dx, dim);
 
-    L_h = zeros(N_vecs);
-    for i = 1:d
-        for j = 1:d
-            if A(i,j) ~= 0
-                L_h = L_h + A(i,j) .* K_grids{i} .* K_grids{j};
-            end
-        end
-    end
-   
     
     denom_gt = 1 ./ (1 - dt * L_h);
     fprintf("cond of denom (4.8): %f \n",cond(diag(denom_gt(:)),'inf'))
