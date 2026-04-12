@@ -2,9 +2,9 @@ clear; clc; close all;
 
 %% 1. Simulation Configuration
 dim = 2;           
-n  = 2;
+n  = 6;
 N=2^n;
-k=2
+k=10
 A=eye(2);
 
 f_handle = @(x,y) cos(2*pi*x) .* sin(-4*pi*y);
